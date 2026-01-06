@@ -21,7 +21,7 @@ pipeline {
 
         stage('TEST') {
             steps {
-                withSonarQubeEnv('SonarQube') {
+                withSonarQubeEnv('MYSonarQube') {
                     dir('backend') {
                         sh '''
                             mvn sonar:sonar -Dsonar.projectKey=studentapp
