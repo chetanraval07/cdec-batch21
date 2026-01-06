@@ -1,4 +1,3 @@
-
 pipeline {
     agent any
 
@@ -14,7 +13,7 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
-                    mvn clean package -DskipTests
+                        mvn clean package -DskipTests
                     '''
                 }
             }
@@ -22,11 +21,13 @@ pipeline {
 
         stage('TEST') {
             steps {
-                 withSonarQubeEnv(credentialsId: 'mz1') {
-		dir('backend') {
-			sh '''
-			mvn sonar:sonar Dsonar.projectKey=studentapp 
-			'''
+                withSonarQubeEnv('mz1') {
+                    dir('backend') {
+                        sh '''
+                            mvn sonar:sonar -Dsonar.projectKey=studentapp
+                        '''
+                    }
+                }
             }
         }
 
