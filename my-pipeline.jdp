@@ -50,7 +50,7 @@ pipeline {
             }
         }
 
-        stage('DEPLOY') {
+        stage('DEPLOYMENT') {
             steps {
                 echo "DEPLOY SUCCESS"
             }
