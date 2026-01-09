@@ -22,9 +22,9 @@ pipeline {
                 withSonarQubeEnv('sonar-cred1') {
                     dir('backend') {
                         sh '''
-                          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-                          -Dsonar.projectKey=studentapp \
-                          -Dsonar.projectName=studentapp
+                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                        -Dsonar.projectKey=studentapp \
+                        -Dsonar.projectName=studentapp
                         '''
                     }
                 }
@@ -43,17 +43,41 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
-                      aws s3 cp target/student-registration-backend-0.0.1-SNAPSHOT.jar \
-                      s3://jenkins-bucxx/studentapp.jar
+                    aws s3 cp target/student-registration-backend-0.0.1-SNAPSHOT.jar \
+                    s3://jenkins-bucxx/studentapp.jar
                     '''
                 }
             }
         }
 
-        stage('DEPLOY') {
+        stage('DOCKER BUILD & PUSH') {
             steps {
-                echo "DEPLOY SUCCESS"
+                dir('backend') {
+                    sh '''
+                    aws ecr get-login-password --region eu-west-1 | \
+                    docker login --username AWS --password-stdin 331785603016.dkr.ecr.eu-west-1.amazonaws.com/student-app
+
+                    docker build -t student-app .
+                    docker tag student-app:latest 331785603016.dkr.ecr.eu-west-1.amazonaws.com/student-app
+                    docker push 331785603016.dkr.ecr.eu-west-1.amazonaws.com/student-app
+                    '''
+                }
             }
         }
+
+        stage('DEPLOY TO EKS') {
+            steps {
+                sh '''
+                aws eks update-kubeconfig --region eu-west-1 --name student-cluster
+
+                sed -i "s|<ECR-IMAGE-URL>|331785603016.dkr.ecr.eu-west-1.amazonaws.com/student-app|g" backend/k8s/deployment.yml
+
+                kubectl apply -f backend/k8s/deployment.yml
+                kubectl get pods
+                kubectl get svc
+                '''
+            }
+        }
+
     }
 }
