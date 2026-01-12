@@ -2,17 +2,16 @@ pipeline {
     agent any
 
     environment {
-        AWS_REGION   = "eu-west-1"
+        AWS_REGION = "eu-west-1"
         ECR_REGISTRY = "331785603016.dkr.ecr.eu-west-1.amazonaws.com"
-        ECR_REPO     = "student-app"
-        IMAGE_TAG    = "latest"
+        ECR_REPO = "student-app"
+        IMAGE_TAG = "latest"
         CLUSTER_NAME = "student-cluster"
-        S3_BUCKET    = "jenkins-bucxx"
     }
 
     stages {
 
-        stage('PULL APP REPO') {
+        stage('PULL') {
             steps {
                 git 'https://github.com/chetanraval07/cdec-batch21.git'
             }
@@ -31,9 +30,9 @@ pipeline {
                 withSonarQubeEnv('sonar-cred1') {
                     dir('backend') {
                         sh '''
-                            mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-                            -Dsonar.projectKey=studentapp \
-                            -Dsonar.projectName=studentapp
+                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                        -Dsonar.projectKey=studentapp \
+                        -Dsonar.projectName=studentapp
                         '''
                     }
                 }
@@ -51,63 +50,10 @@ pipeline {
         stage('DELIVERY') {
             steps {
                 dir('backend') {
-                    sh """
-                        aws s3 cp target/student-registration-backend-0.0.1-SNAPSHOT.jar \
-                        s3://${S3_BUCKET}/studentapp.jar
-                    """
+                    sh '''
+                    aws s3 cp target/student-registration-backend-0.0.1-SNAPSHOT.jar \
+                    s3://jenkins-bucxx/studentapp.jar
+                    '''
                 }
             }
         }
-
-        stage('INFRA - EKS Creation') {
-            steps {
-                script {
-                    // Load infra pipeline as a function (no nested pipeline blocks)
-                    def infra = load 'infra-pipeline.groovy'
-                    infra.runInfra()
-                }
-            }
-        }
-
-        stage('DOCKER BUILD & PUSH') {
-            steps {
-                dir('backend') {
-                    sh """
-                        aws ecr get-login-password --region $AWS_REGION | \
-                        docker login --username AWS --password-stdin $ECR_REGISTRY
-
-                        docker build -t $ECR_REPO:$IMAGE_TAG .
-                        docker tag $ECR_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
-                        docker push $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
-                    """
-                }
-            }
-        }
-
-        stage('DEPLOY TO EKS') {
-            steps {
-                dir('backend') {
-                    sh """
-                        aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-
-                        # Replace placeholder in deployment.yml with real ECR image URL
-                        sed -i "s|<ECR-IMAGE-URL>|$ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG|g" k8s/deployment.yml
-
-                        kubectl apply -f k8s/deployment.yml
-                        kubectl get pods
-                        kubectl get svc
-                    """
-                }
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "Pipeline completed successfully!"
-        }
-        failure {
-            echo "Pipeline failed! Check logs for details."
-        }
-    }
-}
